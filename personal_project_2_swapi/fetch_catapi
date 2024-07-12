@@ -1,0 +1,18 @@
+#!/bin/bash
+
+fetch_random_cat_fact() {
+    local response=$(curl -s "https://catfact.ninja/fact")
+
+    if [[ $? -ne 0 ]]; then
+        echo "Failed to fetch data from Cat Facts API."
+        exit 1
+    fi
+
+    local fact=$(echo "$response" | jq -r '.fact')
+
+    echo "Random Cat Fact:"
+    echo "$fact"
+}
+
+fetch_random_cat_fact
+ 
