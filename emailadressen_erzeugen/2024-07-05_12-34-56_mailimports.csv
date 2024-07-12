@@ -1,0 +1,85 @@
+#!/bin/bash
+
+curl https://haraldmueller.ch/schueler/m122_projektunterlagen/b/MOCK_DATA.csv > mock_data.csv
+
+
+# Rm special characters
+sanitize() {
+    echo "$1" | iconv -f utf8 -t ascii//TRANSLIT | tr -cd '[:alnum:].'
+}
+
+generate_password() {
+    tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 12
+}
+
+# Variables
+output_file="$(date '+%Y-%m-%d_%H-%M-%S')_mailimports.csv"
+archive_file="$(date '+%Y-%m-%d')_newMailadr_Klasse_Nachname.zip"
+
+echo "Emailadresse;Passwort" > "$output_file"
+
+# Reading CSV generate email/passw
+while IFS=, read -r vorname nachname geschlecht strasse str_nummer plz ort; do
+    if [[ "$vorname" != "first_name" ]]; then
+        email="$(sanitize "$vorname").$(sanitize "$nachname")@edu.tbz.ch"
+        password=$(generate_password)
+        echo "$email;$password" >> "$output_file"
+
+        # create letter
+        brief_file="${email}.brf"
+        datum=$(date '+%d.%m.%Y')
+        cat <<EOF > "$brief_file"
+Technische Berufsschule Zürich
+Ausstellungsstrasse 70
+8005 Zürich
+
+Zürich, den $datum
+
+                        $vorname $nachname
+                        $strasse $str_nummer
+                        $plz $ort
+
+Lieber $vorname,
+
+Es freut uns, Sie im neuen Schuljahr begrüssen zu dürfen.
+
+Damit Sie am ersten Tag sich in unsere Systeme einloggen können, erhalten Sie hier Ihre neue Emailadresse und Ihr Initialpasswort, das Sie beim ersten Login wechseln müssen.
+
+Emailadresse:   $email
+Passwort:       $password
+
+Mit freundlichen Grüssen
+
+[IhrVorname] [IhrNachname]
+(TBZ-IT-Service)
+
+admin.it@tbz.ch, Abt. IT: +41 44 446 96 60
+EOF
+    fi
+done < mock_data.csv
+
+
+zip "$archive_file" "$output_file" *.brf
+
+send_email() {
+    subject="Neue TBZ-Mailadressen $(wc -l < "$output_file")"
+    body="Lieber Adressat,
+
+Die Emailadressen-Generierung ist beendet. Es wurden $(wc -l < "$output_file") erzeugt.
+
+Bei Fragen kontaktiere bitte [IhreTBZ-Emailadresse]
+
+Gruss [IhrVorname] [IhrNachname]"
+    echo "$body" | mail -s "$subject" -a "$archive_file" [Empfänger-Email]
+}
+
+# call function
+send_email
+
+# FTP Transfer
+#ftp -n <<END_SCRIPT
+#open ftp.example.com
+#user [Benutzername] [Passwort]
+#put "$archive_file"
+#quit
+#END_SCRIPT
